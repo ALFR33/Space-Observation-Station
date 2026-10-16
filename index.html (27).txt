@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>heib12 // Aerospace Mission Control & Early Warning Console</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- خطوط Google الرسمية -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Cairo', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    /* شريط التمرير */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #020617; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #10b981; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-emerald-500 selection:text-black antialiased">
+
+  <!-- ==================== نافذة طقس العالم اليومية في زاوية الموقع ==================== -->
+  <div id="weather-widget" class="fixed top-20 left-4 z-50 max-w-xs sm:max-w-sm w-full transition-all duration-300">
+    <div id="weather-card" class="bg-slate-900/95 backdrop-blur-md border-2 border-cyan-500/40 rounded-2xl shadow-2xl p-4 text-xs font-sans text-slate-100 flex flex-col gap-3">
+      <div class="flex items-center justify-between border-b border-cyan-500/30 pb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-base animate-pulse">🛰️</span>
+          <div>
+            <span class="font-black text-cyan-400 text-xs tracking-wider block">heib12 GLOBAL WEATHER SAT</span>
+            <span class="text-[10px] text-slate-400 font-mono">تحديث فضائي مباشر يوم بيومه</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button onclick="toggleTempUnit()" id="unit-btn" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-cyan-300 border border-slate-700 hover:border-cyan-400">°C</button>
+          <button onclick="toggleWeather()" class="text-slate-400 hover:text-white p-1 text-xs">✕</button>
+        </div>
+      </div>
+
+      <!-- اختيار المدينة -->
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]" id="cities-bar"></div>
+
+      <!-- بطاقة المدينة الحالية -->
+      <div class="bg-slate-950/80 border border-cyan-500/30 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <div class="text-xs font-bold text-slate-400 flex items-center gap-1">
+            <span>📍</span>
+            <span id="city-name" class="text-slate-200">القدس الشريف</span>
+            <span id="city-country" class="text-[10px] text-slate-500">(الشرق الأوسط)</span>
+          </div>
+          <div class="text-3xl font-black text-white mt-1 flex items-baseline gap-1">
+            <span id="city-temp">24°</span>
+            <span class="text-xs text-cyan-400 font-bold" id="unit-label">C</span>
+          </div>
+          <div id="city-condition" class="text-[11px] text-slate-300 mt-0.5">مشمس وصافٍ</div>
+        </div>
+        <div class="text-left flex flex-col items-end">
+          <span id="city-icon" class="text-4xl">☀️</span>
+          <div class="text-[10px] text-slate-400 font-mono mt-1 space-y-0.5">
+            <div>💧 الرطوبة: <span id="city-hum">48%</span></div>
+            <div>💨 الريid="city-wind">18 km/h</span></div>      </div>
+
+      <!-- التوقعات لـ 5 أيام (يوم بيومه) -->
+      <div>
+        <span class="text-[10px] font-bold text-slate-400 tracking-wider uppercase block mb-1.5">توقعات الأيام القادمة (يوم بيومه):</span>
+        <div class="grid grid-cols-5 gap-1.5 text-center" id="forecast-grid"></div>
+      </div>
+
+      <div class="text-[10px] text-slate-400 bg-slate-950/50 p-2 rounded-lg flex items-center justify-between border border-slate-800">
+        <span class="flex items-center gap-1 text-emerald-400 font-bold">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>Meteosat / NOAA Live</span>
+        </span>
+        <span class="font-mono text-slate-500">1013.2 hPa</span>
+      </div>
+    </div>
+
+    <!-- زر الاستعادة عند التصغير -->
+    <button id="weather-min-btn" onclick="toggleWeather()" class="hidden bg-slate-900/95 border-2 border-cyan-500 text-cyan-400 px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 font-bold text-xs backdrop-blur-md">
+      <span class="text-lg">☀️</span>
+      <span>عرض طقس العالم يوم بيومه ↗</span>
+    </button>
+  </div>
+
+  <!-- ==================== رأس الموقع التكتيكي (Header) ==================== -->
+  <header class="bg-slate-950 border-b border-emerald-500/30 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40 shadow-2xl">
+    <div class="flex items-center gap-3">
+      <div class="relative flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-950/60 border border-emerald-500/50 text-emerald-400 font-black text-xl">
+        🛰️
+        <span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-lg sm:text-xl font-black text-emerald-400 tracking-wider">heib12 // AEROSPACE MISSION CONTROL</h1>
+          <span class="text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded font-mono font-bold">LOCK #44-A</span>
+        </div>
+        <p class="text-[11px] text-slate-400 font-mono">منظومة الرصد الفضائي المداري، الرادار التكتيكي، والإنذار المبكر</p>
+      </div>
+    </div>
+
+    <!-- بيانات التيليمتري اللحظية للساعة وهوائي المحطة -->
+    <div class="hidden xl:flex items-center gap-6 font-mono text-[11px] bg-slate-900/80 border border-slate-800 px-4 py-1.5 rounded-xl text-slate-300">
+      <div>
+        <span class="text-slate-500 block text-[9px]">UTC TIME</span>
+        <span id="utc-time" class="text-emerald-400 font-bold">00:00:00Z</span>
+      </div>
+      <div>
+        <span class="text-slate-500 block text-[9px]">AZ / EL TRACK</span>
+        <span class="text-cyan-300 font-bold">142.4° / 48.2°</span>
+      </div>
+      <div>
+        <span class="text-slate-500 block text-[9px]">CARRIER SNR</span>
+        <span class="text-emerald-400 font-bold">+28.4 dB</span>
+      </div>
+      <div>
+        <span class="text-slate-500 block text-[9px]">DOPPLER SHIFT</span>
+        <span class="text-amber-400 font-bold">+14.2 kHz</span>
+      </div>
+    </div>
+
+    <!-- درجة التأهب وزر الصوت -->
+    <div class="flex items-center gap-3">
+      <div id="defcon-badge" class="px-3 py-1.5 rounded-lg border text-xs font-black tracking-wider bg-emerald-950/80 border-emerald-500/40 text-emerald-400">
+        DEFCON-4 (NORMAL)
+      </div>
+      <button onclick="toggleAudio()" id="audio-btn" class="p-2 rounded-lg bg-slate-900 border border-slate-700 text-emerald-400 text-xs font-bold">
+        🔊 الصوت
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== مساحة العمل الرئيسية ==================== -->
+  <main class="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- القسم الأيسر: شاشة الرادار التكتيكية والمحاكاة المباشرة -->
+    <div class="lg:col-span-8 flex flex-col gap-4">
+      <div class="bg-slate-900/90 border-2 border-emerald-500/40 rounded-2xl p-4 relative shadow-2xl flex flex-col">
+        <!-- شريط الرادار العلوي -->
+        <div class="flex items-center justify-between text-xs text-emerald-400 border-b border-emerald-500/20 pb-2 mb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span class="font-bold">RADAR SCOPE • ACTIVE SWEEP 360°</span>
+            <span class="text-slate-500">|</span>
+            <span id="sweep-angle" class="text-slate-400 font-mono">AZ: 0°</span>
+          </div>
+          <div class="flex items-center gap-3 text-[11px] font-mono text-slate-400">
+            <span>BAND: Ku / Ka / X</span>
+            <span>RANGE: 4000 KM</span>
+            <span class="text-emerald-400 font-bold"></div>
+        </div>
+
+        <!-- كانفاس الرادار التكتيكي -->
+        <div class="relative w-full aspect-[16/10] bg-slate-950 rounded-xl border border-emerald-500/20 overflow-hidden flex items-center justify-center">
+          <canvas id="radarCanvas" class="w-full h-full block"></canvas>
+        </div>
+
+        <!-- أزرار المحاكاة التكتيكية الفورية -->
+        <div class="mt-4 pt-3 border-t border-emerald-500/20 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <span class="text-slate-400 font-bold">أوامر المحاكاة الميدانية:</span>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="simulateLaunch()" class="bg-rose-950/80 hover:bg-rose-900 border border-rose-500/60 text-rose-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition active:scale-95 shadow-md">
+              <span>🔴 محاكاة رصد إطلاق صاروخ</span>
+            </button>
+            <button onclick="simulateEarthquake()" class="bg-amber-950/80 hover:bg-amber-900 border border-amber-500/60 text-amber-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition active:scale-95 shadow-md">
+              <span>🌋 محاكاة رصد زلزال</span>
+            </button>
+            <button onclick="simulateCyclone()" class="bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/60 text-cyan-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition active:scale-95 shadow-md">
+              <span>🌪️ محاكاة رصد إعصار جوي</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- سجل الاتصال الفضائي الحي -->
+      <div class="bg-slate-900/90 border border-emerald-500/30 rounded-xl p-3 text-xs font-mono">
+        <div class="flex items-center justify-between text-slate-400 font-bold mb-2 pb-1 border-b border-slate-800">
+          <span class="flex items-center gap-1.5 text-emerald-400">
+            <span>📻</span>
+            <span>LIVE TELEMETRY STREAM // سجل البيانات الفضائية المباشر</span>
+          </span>
+          <span class="text-[10px] text-slate-500">124.8 MBPS</span>
+        </div>
+        <div id="telemetry-logs" class="space-y-1 text-slate-300 text-[11px] max-h-24 overflow-y-auto">
+          <div>&gt; SAT-MET-04: Carrier lock confirmed on 12.45 GHz Ku-Band (Meteosat)</div>
+          <div>&gt; SBIRS-infrared payload calibrated. Threshold nominal</div>SAR interferometry frame sync complete (Baselines: 120m)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- القسم الأيمن: التبويبات والموسوعات التوعوية والأدلة المدرسية -->
+    <div class="lg:col-span-4 flex flex-col gap-4">
+      <!-- شريط أزرار التبويبات -->
+      <div class="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold text-center">
+        <button onclick="switchTab('school_missiles')" id="tb-school_missiles" class="py-2 px-1 rounded-lg bg-rose-600 text-white transition text-[11px]">
+          🎒 صواريخ المدارس
+        </button>
+        <button onclick="switchTab('school_quakes')" id="tb-school_quakes" class="py-2 px-1 rounded-lg text-slate-400 hover:text-white transition text-[11px]">
+          🎒 زلازل المدارس
+        </button>
+        <button onclick="switchTab('space_edu')" id="tb-space_edu" class="py-2 px-1 rounded-lg text-slate-400 hover:text-white transition text-[11px]">
+          🚀 علوم الفضاء
+        </button>
+        <button onclick="switchTab('defense_wiki')" id="tb-defense_wiki" class="py-2 px-1 rounded-lg text-slate-400 hover:text-white transition text-[11px]">
+          🛡️ حماية ودول
+        </button>
+        <button onclick="switchTab('earthquake_guide')" id="tb-earthquake_guide" class="py-2 px-1 rounded-lg text-slate-400 hover:text-white transition text-[11px]">
+          🌋 أمان الزلازل
+        </button>
+        <button onclick="switchTab('radar_sats')" id="tb-radar_sats" class="py-2 px-1 rounded-lg text-slate-400 hover:text-white transition text-[11px]">
+          🛰️ كوكبة الأقمار
+        </button>
+      </div>
+
+      <!-- محتوى التبويبات -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3 min-h-[380px] max-h-[620px] overflow-y-auto text-xs">
+
+        <!-- 1. دليل حماية طلاب المدارس من الصواريخ -->
+        <div id="content-school_missiles" class="flex flex-col gap-3">
+          <div class="bg-rose-950/40 border border-rose-500/50 rounded-xl p-3 flex flex-col gap-1">
+            <h3 class="text-sm font-black text-rose-300 flex items-center gap-1.5">
+              <span>🎒</span>
+              <span>دليل طلاب المدارس: الحماية عند سماع صفارات الإنذار</span>
+            </h3>
+            <p class="text-[11px] text-slate-300">خطوات بسيطة وواضحة لحماية أنفسكم والهدوء داخل البيئة المدرسية.</p>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-rose-400 block mb-1">🏫 1. داخل غرفة الصف المدرسي:</strong>
+            <ul class="list-disc pr-4 space-y-1 text-slate-300 text-[11px]">
+              <li>اتبع تعليمات المعلم بهدوء تام دون صراخ أو تدافع.</li>
+              <li>ابتعد فوراً عن النوافذ والواجهات الزجاجية (لا تنظر للخارج إطلاقاً).</li>
+              <li>اجلس على الأرض أسفل مستوى خط النوافذ بجانب الجدران الداخلية، واحمِ رأسك بيديك أو بحقيبتك.</li>
+            </ul>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-amber-400 block mb-1">🏃 2. في ساحة المدرسة أو الفسحة:</strong>
+            <ul class="list-disc pr-4 space-y-1 text-slate-300 text-[11px]">
+              <li>إذا كنت قريباً من المبنى، ادخل فوراً لأقرب ملجأ أو ممر داخلي.</li>
+              <li>إذا كنت في منتصف الساحة المفتوحة: انبطح على بطنك على الأرض فوراً وضع يديك وحقيبتك فوق رأسك وعنقك.</li>
+            </ul>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-cyan-400 block mb-1">🚌 3. داخل حافلة أو باص المدرسة:</strong>
+            <ul class="list-disc pr-4 space-y-1 text-slate-300 text-[11px]">
+              <li>سيوقف السائق الحافلة بأمان على جانب الطريق.</li>
+              <li>انزلوا بهدوء دون تدافع وانبطحوا بجانب جدار حماية أو انحنوا في المقاعد أسفل النوافذ.</li>
+            </ul>
+          </div>
+
+          <div class="bg-amber-950/40 border border-amber-500/50 rounded-xl p-3 text-amber-200 text-[11px]">
+            <strong class="text-amber-400 block mb-0.5">⏱️ قاعدة الـ 10 دقائق لجميع الطلاب:</strong>
+            ابقَ في مكانك المحمي لمدة 10 دقائق كاملة بعد توقف الصفارات؛ فالشظايا المتساقطة من الجو تستغرق وقتاً للوصول للأرض.
+          </div>
+        </div>
+
+        <!-- 2. دليل حماية طلاب المدارس من الزلازل -->
+        <div id="content-school_quakes" class="hidden flex flex-col gap-3">
+          <div class="bg-amber-950/40 border border-amber-500/50 rounded-xl p-3 flex flex-col gap-1">
+            <h3 class="text-sm font-black text-amber-300 flex items-center gap-1.5">
+              <span>🎒</span>
+              <span>دليل طلاب المداروالتصرف أثناء الهزات الأرضية</span>text-[11px] text-slate-300">القواعد المعتمدة عالمياً لحماية الطلاب أثناء الزلازل في المدارس.</p>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-amber-400 block mb-1">🪑 القاعدة الذهبية داخل الصف (انبطح • احتمِ • تمسّك):</strong>
+            <div class="space-y-1.5 text-[11px] text-slate-300">
+              <div>• <strong>انبطح (Drop):</strong> انزل على ركبتيك ويديك فوراً بجانب مقعدك لمنع السقوط.</div>
+              <div>• <strong>احتمِ (Cover):</strong> ازحف برأسك وجسدك تحت المقعد المدرسي لحمايتك من سقوط المصابيح والأسقف.</div>
+              <div>• <strong>تمسّك (Hold On):</strong> أمسك بأرجل المقعد بكلتا يديك حتى يتوقف الاهتزاز تماماً.</div>
+            </div>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-emerald-400 block mb-1">🎒 استخدام الحقيبة المدرسية كدرع:</strong>
+            <p class="text-[11px] text-slate-300">ضع حقيبتك المدرسية فوق رأسك ورقبتك لحمايتك من تساقط الكتب أو الزجاج من الرفوف.</p>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-rose-400 block mb-1">🚫 أخطاء خطيرة تجنبها تماماً:</strong>
+            <ul class="list-disc pr-4 space-y-1 text-slate-300 text-[11px]">
+              <li>لا تركض باتجاه الأبواب أثناء الاهتزاز؛ فالتدافع هو السبب الرئيسي للإصابات.</li>
+              <li>لا تستخدم مصاعد المدرسة نهائياً.</li>
+              <li>ابتعد عن النوافذ والشاشات التفاعلية والسبورات المعلقة.</li>
+            </ul>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-cyan-400 block mb-1">📢 الإخلاء الآمن بعد توقف الهزة:</strong>
+            <p class="text-[11px] text-slate-300">اخرجوا بنظام في صف واحد وتوجهوا لـ **ساحة التجمع الآمنة في المدرسة** والتزم بالوقوف مع معلم صفك لتفقد الأسماء.</p>
+          </div>
+        </div>
+
+        <!-- 3. علوم الفضاء والأقمار الاصطناعية لطلاب المدارس والجامعات -->
+        <div id="content-space_edu" class="hidden flex flex-col gap-3">
+          <div class="bg-indigo-950/40 border border-indigo-500/40 rounded-xl p-3 flex flex-col gap-1">
+            <h3 class="text-sm font-black text-indigo-300 flex items-center gap-1.5">
+              <span>🚀</span>
+              <span>موسوعة علوم الفضاء والمدارات لطلاب الجامعات والمدارس</span>
+            </h3>
+            <p class="text-[11px] text-slate-300">شرح أكاديمي دقيق ومبسط عن الأقمار، المدارات، ولماذا يصعد رواد الفضاء.</p>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-indigo-400 block mb-1">1. أنواع الأقمار الاصطناعية وماذا تفعل:</strong>
+            <div class="space-y-1.5 text-[11px] text-slate-300">
+              <div>• <strong>أقمار الاتصالات (Comms):</strong> تعمل كأبراج بث لنقل الإنترنت والتلفاز والمكالمات في المدار الثابت (36,000 كم).</div>
+              <div>• <strong>أقمار الأرصاد (Weather):</strong> ترصد السحب والأعاصير وتقيس درجات حرارة المحيطات بالأشعة تحت الحمراء.</div>
+              <div>• <strong>أقمار الملاحة (GPS):</strong> تدور في المدار المتوسط وترسل إشارات زمنية دقيقة بالنانو ثانية لتحديد المواقع.</div>
+              <div>• <strong>أقمار الاستشعار والرادار (InSAR):</strong> تقيس انزياح القشرة الأرضية وحركة الزلازل بالمليمترات.</div>
+              <div>• <strong>الأقمار النانوية (CubeSats):</strong> أقمار مكعبة صغيرة بحجم (10 سم) يصنعها طلاب الجامعات لإجراء أبحاث فضائية.</div>
+            </div>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-emerald-400 block mb-1">2. لماذا يصعد رواد الفضاء وماذا يفعلون هناك؟:</strong>
+            <div class="space-y-1.5 text-[11px] text-slate-300">
+              <div>• <strong>محطة الفضاء الدولية (ISS):</strong> مختبر طائر على ارتفاع 400 كم يدور بسرعة 28,000 كم/ساعة ويرى الشروق والغروب 16 مرة يومياً.</div>
+              <div>• <strong>أبحاث السرطان والطب:</strong> في انعدام الوزن، تنمو بلورات البروتين بشكل نقي ومثالي لتطوير أدوية جديدة.</div>
+              <div>• <strong>دراسة هشاشة العظام:</strong> يفقد الرواد 1.5% من كتلة عظامهم شهرياً بدون جاذبية، مما يفيد في علاج كبار السن على الأرض.</div>
+              <div>• <strong>السير في الفضاء (Spacewalks):</strong> خروج الرواد ببدلات مجهزة بالأكسجين لـ 8 ساعات لصيانة الألواح والتلسكوبات.</div>
+              <div>• <strong>الحياة اليومية:</strong> ينامون في أكياس نوم مثبتة بالجدران حتى لا يطفوا، ويشربون مياهاً مكررة بنسبة 98% من كل السوائل المسترجعة، ويتمرنون ساعتين ونصف يومياً لمنع ضمور العضلات.</div>
+            </div>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80">
+            <strong class="text-cyan-400 block mb-1">3. تصنيف المدارات الفضائية:</strong>
+            <div class="space-y-1 text-[11px] text-slate-300">
+              <div>• <strong>LEO (المنخفض):</strong> من 160 إلى 2,000 كم (تدور فيه محطة الفضاء الدولية).</div>
+              <div>• <strong>MEO (المتوسط):</strong> من 2,000 إلى 35,786 كم (أقمار تحديد المواقع GPS).</div>
+              <div>• <strong>GEO (الثابت):</strong> 35,786 كم بالضبط فوق خط الاستواء ويدور بنفس سرعة الأرض.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. موسوعة الدفاع الجوي وحماية الصواريخ العامة -->
+        <div id="content-defense_wiki" class="hidden flex flex-col gap-3">
+          <div class="bg-rose-950/30 border border-rose-500/40 rounded-xl p-3">
+            <h3 class="text-xs font-black text-rose-400 mb-1">🛡️ دليل الحماية العامة من الصواريخ والغارات</h3>
+            <p class="text-[11px] text-slate-300">
+              • <strong>داخل المنزل:</strong> الغرفة المحمية أو بيت الدرج الداخلي الأبعد عن الجدران الخارجية، والابتعاد التام عن النوافذ.<br>
+              • <strong>في السيارة:</strong> مغادرة المركبة فوراً والانبطاح في أقرب منخفض أرضي.<br>
+              • <strong>في الأماكن المفتوحة:</strong> الانبطاح أرضاً وتغطية الرأس والرقبة باليدين.<br>
+              • <strong>قاعدة الـ 10 دقائق:</strong> البقاء في المأوى 10 دقائق بعد توقف الصفارات لتجنب الشظايا المتساقطة.
+            </p>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80 space-y-2">
+            <strong class="text-emerald-400 block mb-1">🌐 موسوعة منظومات الدفاع الجوي للدول:</strong>
+            <div class="space-y-1 text-[11px] text-slate-300">
+              <div>• <strong>🇺🇸 أمريكا:</strong> باتريوت (PAC-3) لمتوسط المدى، ثاد (THAAD) لطبقات الجو العليا، إيجيس (SM-3) لاعتراض الفضاء.</div>
+              <div>• <strong>🇮🇱 إسرائيل:</strong> القبة الحديدية لقصير المدى، مقلاع داود للمتوسط، وحيتس (Arrow 2/3) لاعتراض الصواريخ في الفضاء.</div>
+              <div>• <strong>🇷🇺إس-400 بعيد المدى، إس-500 للصواريخ الفرط صوتية، وبانتسير للدفاع النقطي المباشر.</div>
+              <div>• <strong>🇪🇺 أوروبا:</strong> إيريس-تي (IRIS-T) الموجه بالأشعة تحت الحمراء، وسامب/تي مابما بصواريخ أستر.</div>
+              <div>• <strong>🇨🇳 الصين:</strong> منظومات HQ-9 و HQ-19 المرتبطة بكوكبة أقمار الإنذار المبكر.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. دليل أمان الزلازل العام والفيزياء التكتونية -->
+        <div id="content-earthquake_guide" class="hidden flex flex-col gap-3">
+          <div class="bg-amber-950/30 border border-amber-500/40 rounded-xl p-3">
+            <h3 class="text-xs font-black text-amber-400 mb-1">🌋 دليل النجاة العام من الزلازل</h3>
+            <p class="text-[11px] text-slate-300">
+              • <strong>انبطح • احتمِ • تمسّك:</strong> ازحف تحت طاولة متينة وتمسك بأرجلها لحماية رأسك.<br>
+              • <strong>لا تستخدم المصاعد إطلاقاً</strong> ولا تركض للخارج أثناء الاهتزاز.<br>
+              • <strong>بعد توقف الهزة:</strong> أغلق محابس الغاز ومفاتيح الكهرباء وتأهب للهزات الارتدادية.
+            </p>
+          </div>
+
+          <div class="border border-slate-800 rounded-xl p-3 bg-slate-950/80 space-y-1.5 text-[11px] text-slate-300">
+            <strong class="text-cyan-400 block">🔬 مقياس ريختر والأمواج الزلزالية:</strong>
+            <div>• <strong>أقل من 3.5:</strong> تسجله الأجهزة فقط ولا يشعر به الإنسان.</div>
+            <div>• <strong>6.0 فما فوق:</strong> زلزال مدمر يسبب انهيارات إنشائية واسعة.</div>
+            <div>• <strong>الأمواج الأولية (P-Waves):</strong> انضغاطية سريعة جداً تصل أولاً للمحطات.</div>
+            <div>• <strong>الأمواج الثانوية (S-Waves):</strong> أمواج قص مستعرضة تسبب الاهتزاز الأفقي والدمار.</div>
+          </div>
+        </div>
+
+        <!-- 6. كوكبة الأقمار الاصطناعية المسجلة -->
+        <div id="content-radar_sats" class="hidden flex flex-col gap-2">
+          <strong class="text-emerald-400 block mb-1">كوكبة الأقمار النشطة في المحطة:</strong>
+          <div class="p-2.5 bg-slate-950 border border-emerald-500/30 rounded-xl">
+            <div class="font-bold text-emerald-300">METEOSAT-ALPHA [Ku-Band]</div>
+            <div class="text-[10px] text-slate-400">قمر رصد جوي وتتبع أعاصير • المدار: 35,786 كم (GEO)</div>
+          </div>
+          <div class="p-2.5 bg-slate-950 border border-emerald-500/30 rounded-xl">
+            <div class="font-bold text-amber-300">SEISMO-RADAR-9 [X-Band]</div>
+            <div class="text-[10px] text-slate-400">رادار InSAR لمسح التصدعات والزلازل • المدار: 680 كم (LEO)</div>
+          </div>
+          <div class="p-2.5 bg-slate-950 border border-emerald-500/30 rounded-xl">
+            <div class="font-bold text-rose-300">SBIRS-EARLY-WARNING-01 [Ka-Band]</div>
+            <div class="text-[10px] text-slate-400">رصد وميض حراري بالأشعة تحت الحمراء • المدار: 35,800 كم</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- ==================== التذييل وروابط الخصوصية والقوانين ==================== -->
+  <footer class="bg-slate-950 border-t border-slate-800 py-3 px-6 text-center text-xs text-slate-500 flex flex-wrap items-center justify-between gap-4 font-mono">
+    <div class="flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+      <span class="text-slate-300 font-bold">heib12 COMMAND CENTER</span>
+      <span>•</span>
+      <span>Space Defense, Seismic & Meteorology Node</span>
+    </div>
+
+    <!-- روابط النوافذ المنبثقة -->
+    <div class="flex items-center gap-4 text-slate-400 font-sans">
+      <button onclick="openModal('privacy')" class="hover:text-emerald-400 underline">سياسة الخصوصية</button>
+      <span>|</span>
+      <button onclick="openModal('terms')" class="hover:text-emerald-400 underline">الشروط والأحكام</button>
+    </div>
+
+    <div class="text-slate-500 font-mono text-[11px]">CERTIFIED EDUCATIONAL INTERFACE</div>
+  </footer>
+
+  <!-- نافذة الخصوصية والشروط المنبثقة -->
+  <div id="modal-backdrop" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 font-sans">
+    <div class="bg-slate-900 border-2 border-emerald-500/50 rounded-2xl max-w-lg w-full p-6 text-slate-200 text-xs flex flex-col gap-4 shadow-2xl relative">
+      <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-base font-bold">✕</button>
+      <h3 id="modal-title" class="text-base font-black text-emerald-400 border-b border-slate-800 pb-2">عنوان</h3>
+      <div id="modal-body" class="space-y-2 text-slate-300 leading-relaxed text-[11px] max-h-72 overflow-y-auto"></div>
+      <button onclick="closeModal()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-xl text-xs">موافق وإغلاق</button>
+    </div>
+  </div>
+
+  <!-- ==================== جافاسكريبت التفاعلي الكامل ==================== -->
+  <script>
+    // بيانات المدن والطقس اليومي
+    const citiesData = [
+      {
+name: "القدس الشريف",
+        country: "فلسطين",
+        temp: 24,
+        cond: "مشمس وصافٍ",
+        hum: "48%",
+        wind: "18 km/h",
+        forecast: [
+          { day: "اليوم", date: "15 Oct", max: 26, min: 16, icon: "☀️" },
+          { day: "الجمعة", date: "16 Oct", max: 25, min: 15, icon: "⛅" },
+          { day: "السبت", date: "17 Oct", max: 23, min: 14, icon: "🌧️" },
+          { day: "الأحد", date: "18 Oct", max: 22, min: 13, icon: "🌧️" },
+          { day: "الإثنين", date: "19 Oct", max: 24, min: 15, icon: "☀️" }
+        ]
+      },
+      {
+        id: "cairo",
+        name: "القاهرة",
+        country: "مصر",
+        temp: 29,
+        cond: "مشمس وصافٍ",
+        icon: "☀️",
+        wind: "14 km/h",
+        forecast: [
+          { day: "اليوم", date: "15 Oct", max: 30, min: 20, icon: "☀️" },
+          { day: "الجمعة", date: "16 Oct", max: 31, min: 21, icon: "☀️" },
+          { day: "السبت", date: "17 Oct", max: 28, min: 19,}, 27, min: 18, icon: "⛅" },
+          { day: "الإثنين", date: "19 Oct", max: 29, min: 19, icon: "☀️" }
+        ]
+      },
+      {
+        id: "riyadh",
+        name: "الرياض",
+        country: "السعودية",
+        temp: 34,
+        cond: "حار وجاف",
+        icon: "☀️",
+        hum: "18%",
+        wind: "22 km/h",
+        forecast: [
+          { day: "اليوم", date: "15 Oct", max: 36, min: 22, icon: "☀️" },
+          { day: "الجمعة", date: "16 Oct", max: 35, min: 21, icon: "☀️" },
+          { day: "السبت", date: "17 Oct", max: 34, min: 20, icon: "☀️" },
+          {date: "18 Oct", max: 33, min: 19, icon: "⛅" },
+          { day: "الإثنين", date: "19 Oct", max: 34, min: 21, icon: "☀️" }
+        ]
+      },
+      {
+        id: "london",
+        name: "لندن",
+        country: "بريطانيا",
+        temp: 14,
+        cond: "ماطر ورطب",
+        icon: "🌧️",
+        hum: "86%",
+        wind: "25 km/h",
+{ day: "اليوم", date: "15 Oct", max: 15, min: 9, icon: "🌧️" },
+          { day: "الجمعة",Oct", max: 14, min: 8, icon: "⛅" },
+          { day: "السبت", date: "17 Oct", max: 16, min: 10, icon: "🌧️" },
+          { day: "الأحد", date: "18 Oct", max: 13, min: 7, icon: "🌧️" },
+          { day: "الإثنين", date: "19 Oct", max: 15, min: 8, icon: "⛅" }
+        ]
+      },
+      {
+        id: "tokyo",
+        name: "طوكيو",
+        country: "اليابان",
+        temp: 21,
+        cond: "أمطار موسمية",
+        icon: "🌧️",
+        hum: "80%",
+        wind: "24 km/h",
+        forecast: [
+          { day: "اليوم", date: "15 Oct", max: 22, min: 16, icon: "🌧️" },
+          { day: "الجمعة", date: "16 Oct", max: 24, min: 17, icon: "⛅" },
+          { day: "السبت", date: "17 Oct", max: 23, min: 15, icon: "☀️" },
+          { day: "الأحد", date: "18 Oct", max: 21, min: 14, icon: "⛅" },
+          { day: "الإثنين", date: "19 Oct", max: 23, min: 16, icon: "☀️" }
+        ]
+      }
+    ];
+
+    let currentCityIdx = 0;
+    let unit = "C";
+    let soundOn = true;
+
+    function renderWeather() {
+      const city = citiesData[currentCityIdx];
+      document.getElementById("city-name").innerText = city.name;
+      document.getElementById("city-country").innerText = `(${city.country})`;
+      const displayTemp = unit === "C" ? city.temp : Math.round((city.temp * 9) / 5 + 32);
+      document.getElementById("city-temp").innerText = displayTemp + "°";
+      document.getElementById("unit-label").innerText = unit;
+      document.getElementById("city-condition").innerText = city.cond;
+      document.getElementById("city-icon").innerText = city.icon;
+      document.getElementById("city-hum").innerText = city.hum;
+      document.getElementById("city-wind").innerText = city.wind;
+
+      // شريط أزرار المدن
+      const bar = document.getElementById("cities-bar");
+      bar.innerHTML = "";
+      citiesData.forEach((c, i) => {
+        const btn = document.createElement("button");
+        btn.innerText = c.name;
+        btn.className = `px-2.5 py-1 rounded-lg whitespace-nowrap font-bold transition ${i === currentCityIdx ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-300'}`;
+        btn.onclick = () => { currentCityIdx = i; renderWeather(); };
+        bar.appendChild(btn);
+      });
+
+      // توقعات 5 أيام
+      const grid = document.getElementById("forecast-grid");
+      grid.innerHTML = "";
+      city.forecast.forEach((fc, i) => {
+        const card = document.createElement("div");
+        card.className = `p-1.5 rounded-xl border flex flex-col items-center ${i === 0 ? 'bg-cyan-950/60 border-cyan-500/50 text-cyan-300 font-bold' : 'bg-slate-950/60 border-slate-800 text-slate-300'}`;
+        const maxT = unit === "C" ? fc.max : Math.round((fc.max * 9) / 5 + 32);
+        const minT = unit === "C" ? fc.min : Math.round((fc.min * 9) / 5 + 32);
+        card.innerHTML = `
+          <span class="text-[10px]">${fc.day}</span>
+          <span class="text-[9px] text-slate-500 font-mono">${fc.date}</span>
+          <span class="text-lg my-1">${fc.icon}</span>
+          <div class="text-[10px] font-black">${maxT}° <span class="text-slate-500 text-[9px] block">${minT}°</span></div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function toggleTempUnit() {
+      unit = unit === "C" ? "F" : "C";
+      document.getElementById("unit-btn").innerText = "°" + unit;
+      renderWeather();
+    }
+
+    function toggleWeather() {
+      document.getElementById("weather-card").classList.toggle("hidden");
+      document.getElementById("weather-min-btn").classList.toggle("hidden");
+    }
+
+    // إدارة التبويبات
+    const tabKeys = ['school_missiles', 'school_quakes', 'space_edu', 'defense_wiki', 'earthquake_guide', 'radar_sats'];
+
+    function switchTab(target) {
+      tabKeys.forEach(k => {
+        const content = document.getElementById("content-" + k);
+        const btn = document.getElementById("tb-" + k);
+        if (k === target) {
+          content.classList.remove("hidden");
+          btn.className = "py-2 px-1 rounded-lg bg-emerald-600 text-white font-bold transition text-[11px]";
+        } else {
+          content.classList.add("hidden");
+          btn.className = "py-2 px-1 rounded-lg text-slate-400 hover:text-white transition text-[11px]";
+        }
+      });
+    }
+
+    // كانفاس الرادار التكتيكي الحي
+    const canvas = document.getElementById("radarCanvas");
+    const ctx = canvas.getContext("2d");
+    let angle = 0;
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    function drawRadar() {
+      ctx.fillStyle = "rgba(2, 6, 23, 0.2)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const r = Math.min(cx, cy) * 0.9;
+
+      // الدوائر
+      ctx.strokeStyle = "rgba(16, 185, 129, 0.25)";
+      ctx.lineWidth = 1;
+      [0.25, 0.5, 0.75, 1].forEach(pct => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * pct, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      // المحاور
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx, cy + r);
+      ctx.moveTo(cx - r, cy);
+      ctx.lineTo(cx + r, cy);
+      ctx.stroke();
+
+      // شعاع المسح الدائري
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+      grad.addColorStop(0, "rgba(16, 185, 129, 0.45)");
+      grad.addColorStop(1, "rgba(16, 185, 129, 0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, 0, 0.6);
+      ctx.lineTo(0, 0);
+      ctx.fill();
+      ctx.restore();
+
+      // أهداف افتراضية مضيئة (أقمار اصطناعية)
+      ctx.fillStyle = "#10b981";
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.4 * Math.cos(angle * 0.5), cy + r * 0.4 * Math.sin(angle * 0.5), 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      angle += 0.04;
+      document.getElementById("sweep-angle").innerText = `AZ: ${Math.round((angle * (180 / Math.PI)) % 360)}°`;
+      requestAnimationFrame(drawRadar);
+    }
+    drawRadar();
+
+    // الصوتيات التكتيكية عبر Web Audio API
+    function playAudioTone(freq, type="sine") {
+      if (!soundOn) return;
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.35);
+      } catch(e) {}
+    }
+
+    function toggleAudio() {
+      soundOn = !soundOn;
+      document.getElementById("audio-btn").innerText = soundOn ? "🔊 الصوت" : "🔇 مكتوم";
+    }
+
+    function addTelemetryLog(msg) {
+      const logs = document.getElementById("telemetry-logs");
+      const el = document.createElement("div");
+      el.innerHTML = `&gt; ${msg}`;
+      logs.prepend(el);
+    }
+
+    // أوامر المحاكاة
+    function simulateLaunch() {
+      playAudioTone(880, "sawtooth");
+      document.getElementById("defcon-badge").innerText = "DEFCON-1 (CRITICAL ALERT)";
+      document.getElementById("defcon-badge").className = "px-3 py-1.5 rounded-lg border text-xs font-black tracking-wider bg-rose-950 border-rose-500 text-rose-400 animate-pulse";
+      addTelemetryLog("<span class='text-rose-400 font-bold'>[إنذار إطلاق] SBIRS رصد وميض حراري لصاروخ باليستي (Mach 8.4) متجهاً للمنطقة!</span>");
+    }
+
+    function simulateEarthquake() {
+      playAudioTone(240, "triangle");
+      document.getElementById("defcon-badge").innerText = "DEFCON-2 (SEISMIC HIGH)";
+      document.getElementById("defcon-badge").className = "px-3 py-1.5 rounded-lg border text-xs font-black tracking-wider bg-amber-950 border-amber-500 text-amber-400";
+      addTelemetryLog("<span class='text-amber-400 font-bold'>[رصد زلزالي] رادار InSAR سجل إزاحة تكتونية عنيفة بقوة 6.3 ريختر على صدع الأناضول!</span>");
+    }
+
+    function simulateCyclone() {
+      playAudioTone(440, "sine");
+      addTelemetryLog("<span class='text-cyan-400 font-bold'>[أرصاد فضائية] METEOSAT يرصد تعمق إعصار مداري برياح 185 كم/س!</span>");
+    }
+
+    // إدارة نوافذ الخصوصية والشروط
+    function openModal(type) {
+      const backdrop = document.getElementById("modal-backdrop");
+      const title = document.getElementById("modal-title");
+      const body = document.getElementById("modal-body");
+      backdrop.classList.remove("hidden");
+
+      if (type === "privacy") {
+        title.innerText = "سياسة الخصوصية وحماية البيانات - heib12";
+        body.innerHTML = `
+          <p><strong>1. الخصوصية التامة:</strong> موقع heib12 يعمل محلياً في متصفحك ولا يقوم بجمع أو تسجيل أي إحداثيات جغرافية أو بيانات شخصية للزوار.</p>
+          <p><strong>2. غرض المحاكاة:</strong> جميع إشارات الرادار والبيانات الفضائية تُولد برمجياً لأغراض المحاكاة والتعليم ونشر ثقافة السلامة العامة.</p>
+          <p><strong>3. الأمان المفتوح:</strong> الموقع لا يستخدم ملفات تعريف ارتباط تجسسية أو إعلانات تعقب.</p>
+        `;
+      } else {
+        title.innerText = "الشروط والأحكام والمسؤولية القانونية - heib12";
+        body.innerHTML = `
+          <p><strong>1. الاستخدام التعليمي والتوعوي:</strong> هذا الموقع مخصص للبحث العلمي، طلاب المدارس والجامعات، والتوعية بالدفاع المدني.</p>
+          <p><strong>2. حالات الطوارئ الحقيقية:</strong> في حالات الطوارئ الواقعية، يجب دائماً الالتزام بالتعليمات الرسمية الصادرة عن جهات الدفاع المدني والسلطات الوطنية.</p>
+          <p><strong>3. الملكية الفكرية:</strong> المحتوى والأدلة مفتوحة ومتاحة لجميع الطلاب والباحثين للاستفادة التعليمية الحرة.</p>
+        `;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById("modal-backdrop").classList.add("hidden");
+    }
+
+    // تحديث ساعة UTC
+    setInterval(() => {
+      document.getElementById("utc-time").innerText = new Date().toISOString().substring(11, 19) + "Z";
+    }, 1000);
+
+    // تشغيل أولي
+    renderWeather();
+  </script>
+</body>
+</html>
